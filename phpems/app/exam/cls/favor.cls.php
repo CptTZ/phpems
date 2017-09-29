@@ -178,10 +178,11 @@ class favor_exam
 	{
 		$page = $page > 0?$page:1;
 		$r = array();
-		$data = array($fields,'examhistory',$args,false,"ehid DESC,ehscore DESC",array(intval($page-1)*$number,$number));
+		$args[] = array("AND","examhistory.ehuserid = user.userid");
+		$data = array($fields,array('examhistory','user'),$args,false,"ehscore DESC,ehid DESC",array(intval($page-1)*$number,$number));
 		$sql = $this->pdosql->makeSelect($data);
 		$r['data'] = $this->db->fetchAll($sql,'ehid');
-		$data = array('count(*) AS number','examhistory',$args);
+		$data = array('count(*) AS number',array('examhistory','user'),$args);
 		$sql = $this->pdosql->makeSelect($data);
 		$t = $this->db->fetch($sql);
 		$pages = $this->pg->outPage($this->pg->getPagesNumber($t['number'],$number),$page);
@@ -264,13 +265,12 @@ class favor_exam
 	}
 
 	//添加一个考试记录
-	public function addExamHistory($sessionid,$status = 1)
+	public function addExamHistory($sessionid = false,$status = 1)
 	{
-		file_put_contents('aa.txt',print_r($status,true));
 		$exam = $this->exam->getExamSessionBySessionid($sessionid);
 		if(!$exam)return false;
-		$user = $this->session->getSessionUser();
 		$t = TIME - $exam['examsessionstarttime'];
+		$user = $this->G->make('user','user')->getUserById($exam['examsessionuserid']);
 		if($t >= $exam['examsessiontime']*60)$t = $exam['examsessiontime']*60;
 		$args = array(
 					'ehtype'=>$exam['examsessiontype'],
@@ -285,12 +285,12 @@ class favor_exam
 					'ehtime'=>$t,
 					'ehscore'=>$exam['examsessionscore'],
 					'ehscorelist'=>$exam['examsessionscorelist'],
-					'ehuserid'=>$user['sessionuserid'],
-					'ehusername'=>$user['sessionusername'],
+					'ehuserid'=>$exam['examsessionuserid'],
+					'ehusername'=>$user['username'],
 					'ehdecide' => intval($exam['examsessionsetting']['examdecide']),
-					'ehstatus' => $status
+					'ehstatus' => $status,
+					'ehispass' => $exam['examsessionscore'] >= $exam['examsessionsetting']['examsetting']['passscore']?1:0
 		);
-		file_put_contents('aab.txt',print_r($args,true));
 		/**
 		try
 		{
@@ -331,7 +331,7 @@ class favor_exam
 
 	public function getExamUseNumber($userid,$examid,$basicid,$type = 2)
 	{
-		$data = array('count(*) AS number',"examhistory",array(array("AND","ehuserid = :ehuserid",'ehuserid',$userid),array("AND","ehexamid = :ehexamid",'ehexamid',$examid),array("AND","ehbasicid = :ehbasicid",'ehbasicid',$basicid),array("AND","ehtype = :ehtype",'ehtype',$type)));
+		$data = array('count(*) AS number',"examhistory",array(array("AND","ehuserid = :ehuserid",'ehuserid',$userid),array("AND","ehexamid = :ehexamid",'ehexamid',$examid),array("AND","ehbasicid = :ehbasicid",'ehbasicid',$basicid),array("AND","ehtype = :ehtype",'ehtype',$type),array("AND","ehneedresit = 0")));
 		$sql = $this->pdosql->makeSelect($data);
 		$r = $this->db->fetch($sql);
 		return $r['number'];
@@ -341,12 +341,11 @@ class favor_exam
 	{
 		$data = array(
 			'select' => false,
-			'table' => 'examhistory',
-			'query' => array(array("AND","ehbasicid = :ehbasicid",'ehbasicid',$basicid),array("AND","ehtype = 2"),array("AND","ehstatus = 1")),
-			'orderby' => 'ehscore DESC,ehid DESC',
-			'serial' => 'catmanager'
+			'table' => array('examhistory','user'),
+			'query' => array(array("AND","ehbasicid = :ehbasicid",'ehbasicid',$basicid),array("AND","ehtype = 2"),array("AND","ehuserid = userid"),array("AND","ehstatus = 1")),
+			'orderby' => 'ehscore DESC,ehid DESC'
 		);
-		return $this->db->listElements($page,20,$data);
+		return $this->db->listElements($page,10,$data);
 	}
 
 	public function getUserScoreIndex($basicid,$userid,$score)

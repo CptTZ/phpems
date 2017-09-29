@@ -92,8 +92,8 @@ class wechat
 	public function init($options)
 	{
 		$this->token = isset($options['token'])?$options['token']:'';
-		$this->appid = isset($options['appid'])?$options['appid']:'';
-		$this->appsecret = isset($options['appsecret'])?$options['appsecret']:'';
+		$this->appid = isset($options['appid'])?$options['appid']:WXAPPID;
+		$this->appsecret = isset($options['appsecret'])?$options['appsecret']:WXAPPSECRET;
 		$this->debug = isset($options['debug'])?$options['debug']:false;
 		$this->_logcallback = isset($options['logcallback'])?$options['logcallback']:false;
 	}

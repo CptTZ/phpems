@@ -18,9 +18,7 @@ class tpl
     	$this->fl = $this->G->make('files');
     	$this->ev = $this->G->make('ev');
 
-    	if($this->ev->url(1))
-    	$this->dir = $this->G->app.'/tpls/'.$this->ev->url(1).'/';
-    	else $this->dir = $this->G->app.'/tpls/app/';
+    	$this->dir = $this->G->app.'/tpls/'.$this->G->module.'/';
     }
 
     //设置缓存事件

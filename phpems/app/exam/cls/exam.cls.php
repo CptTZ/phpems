@@ -61,7 +61,7 @@ class exam_exam
 	//修改考试会话内容
 	//参数：会话内容数组
 	//返回值：true
-	public function modifyExamSession($args,$sessionid)
+	public function modifyExamSession($args,$sessionid = false)
 	{
 		if(!$sessionid)
 		$sessionid = $this->session->getSessionId();
@@ -85,7 +85,7 @@ class exam_exam
 	//获取当前考试会话信息
 	//参数：无
 	//返回值：会话信息数组
-	public function getExamSessionBySessionid($sessionid)
+	public function getExamSessionBySessionid($sessionid = false)
 	{
 		if(!$sessionid)
 		$sessionid = $this->session->getSessionId();
@@ -94,12 +94,13 @@ class exam_exam
 		return $this->db->fetch($sql,array('examsessionquestion','examsessionsign','examsessionsetting','examsessionuseranswer','examsessionscorelist'));
 	}
 
-	public function getExamSessionByUserid($userid,$basicid,$sessionid = 0,$usesession = 0)
+	public function getExamSessionByUserid($userid,$basicid,$sessionid = 0,$usesession = 0,$type = 2)
 	{
 		if($usesession && !$sessionid)$sessionid = $this->session->getSessionId();
 		$args = array(array("AND","examsessionuserid = :examsessionuserid",'examsessionuserid',$userid));
 		$args[] = array("AND","examsessionbasic = :examsessionbasic",'examsessionbasic',$basicid);
 		if($usesession)$args[] = array("AND","examsessionid = :examsessionid",'examsessionid',$sessionid);
+		if($type)$args[] = array("AND","examsessiontype = :examsessiontype",'examsessiontype',$type);
 		$data = array(false,'examsession',$args,false,"examsessionstarttime DESC");
 		$sql = $this->pdosql->makeSelect($data);
 		return $this->db->fetch($sql,array('examsessionquestion','examsessionsign','examsessionsetting','examsessionuseranswer','examsessionscorelist'));
@@ -294,17 +295,119 @@ class exam_exam
 		$sql = $this->pdosql->makeInsert($data);
 		$this->db->exec($sql);
 		$r = $this->db->lastInsertId();
-		$questionknowsid = $this->ev->addSlashes(serialize($this->parseQuestionKnows($args['qrknowsid'],$r,1)));
+		$questionknowsid = $this->parseQuestionKnows($args['qrknowsid'],$r,1);
 		$data = array('questionrows',array('qrknowsid'=>$questionknowsid),array(array("AND","qrid = :qrid",'qrid',$r)));
 		$sql = $this->pdosql->makeUpdate($data);
 		$this->db->exec($sql);
 		return $r;
 	}
 
+	public function importQuestionBat($uploadfile,$tknowsid,$questionparent = 0)
+	{
+		$handle = fopen($uploadfile,"r");
+		$qrid = 0;
+		while ($data = fgetcsv($handle))
+		{
+			$args = array();
+			$question = $data;
+			if(count($question) >= 6)
+			{
+				$isqr = intval(trim($question[8]," \n\t"));
+				if($isqr)
+				{
+					$istitle = intval(trim($question[9]," \n\t"));
+					if($istitle)
+					{
+						if($qrid)
+						{
+							$this->resetRowsQuestionNumber($qrid);
+						}
+						$args['qrtype'] = $question[0];
+						$args['qrquestion'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim(nl2br($question[1])," \n\t"))));
+						$args['qrlevel'] = $question[7];
+						$args['qrtime'] = TIME;
+						if(!$tknowsid)
+						$questionknowsid = trim($question[6]," \n\t");
+						else
+						$questionknowsid = $tknowsid;
+						if($questionknowsid)
+						{
+							$questionknowsid = explode(',',$questionknowsid);
+							$tmpkid = '0';
+							foreach($questionknowsid as $knowsid)
+							{
+								$knowsid = intval($knowsid);
+								if($knowsid)$tmpkid .= ",".$knowsid;
+							}
+							$knows = $this->section->getKnowsListByArgs(array(array("AND","find_in_set(knowsid,:knowsid)",'knowsid',$tmpkid)));
+							$args['qrknowsid'] = '';
+							foreach($knows as $p)
+							{
+								$args['qrknowsid'] .= $p['knowsid'].':'.$p['knows']."\n";
+							}
+						}
+						$qrid = $this->addQuestionRows($args);
+					}
+					else
+					{
+						$args['questiontype'] = intval($question[0]);
+						$args['question'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim($question[1]," \n\t"))));
+						$args['questionselect'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim($question[2]," \n\t"))));
+						$args['questionselectnumber'] = intval(trim($question[3]," \n\t"));
+						$args['questionanswer'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim($question[4]," \n\t"))));
+						$args['questiondescribe'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim($question[5]," \n\t"))));
+						if($qrid)$args['questionparent'] = $qrid;
+						$args['questionlevel'] = intval(trim($question[7]," \n\t"));
+						$args['questioncreatetime'] = TIME;
+						$this->addQuestions($args);
+					}
+				}
+				else
+				{
+					$args['questiontype'] = intval($question[0]);
+					$args['question'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim($question[1]," \n\t"))));
+					$args['questionselect'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim($question[2]," \n\t"))));
+					$args['questionselectnumber'] = intval(trim($question[3]," \n\t"));
+					$args['questionanswer'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim($question[4]," \n\t"))));
+					$args['questiondescribe'] = $this->ev->addSlashes(htmlspecialchars(iconv("GBK","UTF-8//IGNORE",trim($question[5]," \n\t"))));
+					if(!$tknowsid)
+					$questionknowsid = trim($question[6]," \n\t");
+					else
+					$questionknowsid = $tknowsid;
+					if($questionknowsid)
+					{
+						$questionknowsid = explode(',',$questionknowsid);
+						$tmpkid = '0';
+						foreach($questionknowsid as $knowsid)
+						{
+							$knowsid = intval($knowsid);
+							if($knowsid)$tmpkid .= ",".$knowsid;
+						}
+						$knows = $this->section->getKnowsListByArgs(array(array("AND","find_in_set(knowsid,:knowsid)",'knowsid',$tmpkid)));
+						$args['questionknowsid'] = '';
+						foreach($knows as $p)
+						{
+							$args['questionknowsid'] .= $p['knowsid'].':'.$p['knows']."\n";
+						}
+					}
+					if($questionparent)$args['questionparent'] = $questionparent;
+					$args['questionlevel'] = intval(trim($question[7]," \n\t"));
+					$args['questioncreatetime'] = TIME;
+					$this->addQuestions($args);
+				}
+			}
+		}
+		if($qrid)
+		{
+			$this->resetRowsQuestionNumber($qrid);
+		}
+		return true;
+	}
+
 	//批量导入试题
 	//参数：批量试题内容字符串，知识点ID
 	//返回值：true
-	public function importQuestionBat($uploadfile,$tknowsid,$questionparent = 0)
+	public function importQuestionBatbak($uploadfile,$tknowsid,$questionparent = 0)
 	{
 		$handle = fopen($uploadfile,"r");
 		while ($data = fgetcsv($handle))
@@ -624,14 +727,22 @@ class exam_exam
 	//返回值：试题内容数组
 	public function getQuestionNumberByQuestypeAndKnowsid($questype,$knowsid)
 	{
-		if(!$knowsid)$knowsid = '0';
-		$data = array("count(*) AS number",array('questions','quest2knows'),array(array("AND","questions.questiontype = :questype",'questype',$questype),array("AND","questions.questionparent = 0"),array("AND","questions.questionstatus = 1"),array("AND","questions.questionid = quest2knows.qkquestionid"),array("AND","find_in_set(quest2knows.qkknowsid,:knowsid)",'knowsid',$knowsid),array("AND","quest2knows.qktype = 0")),false,false,false);
-		$sql = $this->pdosql->makeSelect($data);
-		$r = $this->db->fetch($sql);
-		$data = array("sum(qrnumber) AS number",array('questionrows','quest2knows'),array(array("AND","questionrows.qrtype = :questype",'questype',$questype),array("AND","questionrows.qrstatus = 1"),array("AND","questionrows.qrid = quest2knows.qkquestionid"),array("AND","find_in_set(quest2knows.qkknowsid,:knowsid)",'knowsid',$knowsid),array("AND","quest2knows.qktype = 1")),false,false,false);
-		$sql = $this->pdosql->makeSelect($data);
-		$m = $this->db->fetch($sql);
-		return $r['number']+$m['number'];
+		$ca = $this->G->make('ca');
+		if($ca->isTimeOut("n-{$questype}-{$knowsid}"))
+		{
+			if(!$knowsid)$knowsid = '0';
+			$data = array("count(*) AS number",array('questions','quest2knows'),array(array("AND","questions.questiontype = :questype",'questype',$questype),array("AND","questions.questionparent = 0"),array("AND","questions.questionstatus = 1"),array("AND","questions.questionid = quest2knows.qkquestionid"),array("AND","find_in_set(quest2knows.qkknowsid,:knowsid)",'knowsid',$knowsid),array("AND","quest2knows.qktype = 0")),false,false,false);
+			$sql = $this->pdosql->makeSelect($data);
+			$r = $this->db->fetch($sql);
+			$data = array("sum(qrnumber) AS number",array('questionrows','quest2knows'),array(array("AND","questionrows.qrtype = :questype",'questype',$questype),array("AND","questionrows.qrstatus = 1"),array("AND","questionrows.qrid = quest2knows.qkquestionid"),array("AND","find_in_set(quest2knows.qkknowsid,:knowsid)",'knowsid',$knowsid),array("AND","quest2knows.qktype = 1")),false,false,false);
+			$sql = $this->pdosql->makeSelect($data);
+			$m = $this->db->fetch($sql);
+			$number = $r['number']+$m['number'];
+			$ca->writeCache("n-{$questype}-{$knowsid}",$number);
+			return $number;
+		}
+		else
+		return $ca->readCache("n-{$questype}-{$knowsid}");
 	}
 
 	//根据参数获取单一题帽试题
@@ -645,6 +756,13 @@ class exam_exam
 		if($r['qrid'])
 		$r['data'] = $this->getSimpleQuestionListByArgs(array(array("AND","questionparent = :questionparent",'questionparent',$r['qrid']),array("AND","questionstatus = 1")));
 		return $r;
+	}
+
+	public function getAllQuestionRowsByArgs($args)
+	{
+		$data = array(false,array('questionrows','quest2knows'),$args,false,false,false);
+		$sql = $this->pdosql->makeSelect($data);
+		return $this->db->fetchAll($sql);
 	}
 
 	public function getQuestionRowsById($id,$fields = false)

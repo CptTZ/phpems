@@ -20,6 +20,11 @@ class user_user
 		$this->session = $this->G->make('session');
 	}
 
+	public function autoLoginWxUser($openid)
+	{
+		//
+	}
+
 	public function getModuleUserInfo($userid = 0)
 	{
 		$user = $this->session->getSessionUser();

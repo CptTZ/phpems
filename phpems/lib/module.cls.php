@@ -154,7 +154,10 @@ class module
 	//根据字段名称和模型ID查找字段
 	public function getFieldByNameAndModuleid($field,$moduleid)
 	{
+		if($moduleid)
 		$data = array(false,'module_fields',array(array('AND',"fieldmoduleid = :moduleid",'moduleid',$moduleid),array('AND',"field = :field",'field',$field)));
+		else
+		$data = array(false,'module_fields',array(array('AND',"field = :field",'field',$field)));
 		$sql = $this->pdosql->makeSelect($data);
 		return $this->db->fetch($sql);
 	}

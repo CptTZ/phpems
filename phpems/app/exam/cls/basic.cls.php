@@ -74,9 +74,22 @@ class basic_exam
 		return $this->db->exec($sql);
 	}
 
+	public function getOpenBasicMember($args,$page,$number = 20,$order = 'obtime DESC,obid DESC')
+	{
+		$args[] = array("AND","openbasics.obuserid = user.userid");
+		$data = array(
+			'select' => false,
+			'table' => array('openbasics','user'),
+			'query' => $args,
+			'orderby' => $order
+		);
+		$r = $this->db->listElements($page,$number,$data);
+		return $r;
+	}
+
 	public function getOpenBasicNumber($basicid)
 	{
-		$data = array("count(*) as number",'openbasics',array(array("AND","obbasicid = :obbasicid",'obbasicid',$basicid),array("AND","obendtime <= :obendtime",'obendtime',TIME)));
+		$data = array("count(*) as number",'openbasics',array(array("AND","obbasicid = :obbasicid",'obbasicid',$basicid),array("AND","obendtime >= :obendtime",'obendtime',TIME)));
 		$sql = $this->pdosql->makeSelect($data);
 		$r = $this->db->fetch($sql);
 		return $r['number'];

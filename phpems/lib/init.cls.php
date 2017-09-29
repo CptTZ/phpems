@@ -24,6 +24,7 @@ function handleError($errno, $errstr, $errfile, $errline)
 	}
 }
 set_error_handler('handleError');
+//ini_set("display_errors","on");
 
 class ginkgo
 {
@@ -31,7 +32,7 @@ class ginkgo
 	public $L = array();
 	public $I = array('app'=>array(),'core'=>array());
 	public $app;
-	public $defaultApp = 'content';
+	public $defaultApp = 'exam';
 
 	public function __construct()
 	{
@@ -107,34 +108,55 @@ class ginkgo
 	//执行页面
 	public function run()
 	{
-		$ev = $this->make('ev');
 		include 'lib/config.inc.php';
+		header('P3P: CP=CAO PSA OUR');
+		header('Content-Type: text/html; charset='.HE);
+		ini_set('date.timezone','Asia/Shanghai');
+		date_default_timezone_set("Etc/GMT-8");
+		$ev = $this->make('ev');
 		$app = $ev->url(0);
-		if(!$app)$app = $this->defaultApp;
 		$this->app = $app;
-		$module = $ev->url(1);
-		if(!$module)$module = 'app';
-		$modulefile = 'app/'.$app.'/'.$module.'.php';
-		if(!file_exists($modulefile))
+		$this->module = $module = $ev->url(1);
+		$this->method = $method = $ev->url(2);
+		if($ev->isMobile())$module = $this->module = 'phone';
+		if(USEWX && $ev->isWeixin())
+		{
+			if(!$_SESSION['openid'])
+			{
+				$wxpay = $this->make('wxpay');
+				$openid = $wxpay->getwxopenid();
+			}
+			/**
+			$this->user = $this->make('user','user');
+			$this->session = $this->make('session');
+			$_user = $this->session->getSessionUser();
+			if(!$_user['sessionuserid'])
+			{
+				$r = $this->user->autoLoginWxUser($_SESSION['openid']);
+				if($r)
+				{
+					header("location:index.php?".$this->defaultApp.'-'.$this->module.'&userhash='.$ev->get('userhash'));
+					exit;
+				}
+			}
+			**/
+		}
+		if(!$app)
 		{
 			$this->app = $app = $this->defaultApp;
-			$modulefile = 'app/'.$app.'/app.php';
 		}
+		if(!$module)$this->module = $module = 'app';
+		if(!$method)$this->method = $method = 'index';
+		include 'app/'.$app.'/'.$module.'.php';
+		$modulefile = 'app/'.$app.'/controller/'.$method.'.'.$module.'.php';
 		if(file_exists($modulefile))
 		{
-			header('P3P: CP=CAO PSA OUR');
-			header('Content-Type: text/html; charset='.HE);
-			ini_set('date.timezone','Asia/Shanghai');
-			date_default_timezone_set("Etc/GMT-8");
 			include $modulefile;
-			$run = new app($this);
 			$tpl = $this->make('tpl');
-			$method = $ev->url(2);
-			if(!method_exists($run,$method))
-			$method = 'index';
 			$tpl->assign('_app',$app);
 			$tpl->assign('method',$method);
-			$run->$method();
+			$run = new action($this);
+			$run->display();
 		}
 		else die('error:Unknown app to load, the app is '.$app);
 	}
